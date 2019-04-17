@@ -2,6 +2,7 @@ package log
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"strconv"
@@ -20,18 +21,18 @@ var (
 func Flush(buf *bytes.Buffer) {
 	file := filePath + fileName + strconv.Itoa(counter) + ".log"
 
-	q, err := os.OpenFile(file, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0755)
+	err := os.Chmod(file, 0777)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	//Create log file to be scraped to Loki
+	w, err := os.Create(file)
 	if err != nil {
 		panic(err)
 	}
-
-	// //Create log file to be scraped to Loki
-	// w, err := os.Create(file)
-	// if err != nil {
-	// 	panic(err)
-	// }
 	start := time.Now()
-	n, err := buf.WriteTo(q)
+	n, err := buf.WriteTo(w)
 	if err != nil {
 		panic(err)
 	}
@@ -40,7 +41,7 @@ func Flush(buf *bytes.Buffer) {
 	//Reset buffer
 	buf.Reset()
 	//Close file
-	q.Close()
+	w.Close()
 
 	counter++
 
