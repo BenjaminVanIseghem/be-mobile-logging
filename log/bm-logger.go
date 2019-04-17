@@ -56,7 +56,7 @@ func CreateLogBuffer() (*bytes.Buffer, *logrus.Entry) {
 }
 
 //Error pushes the error onto the buffer and flushes the buffer to file
-func Error(logger *logrus.Entry, msg string, err error, buf *bytes.Buffer, fileName string) {
+func Error(logger *logrus.Entry, msg string, err error, buf *bytes.Buffer) {
 	logger.Error(msg, err)
 	//Flush to file
 	Flush(buf)
@@ -66,7 +66,7 @@ func Error(logger *logrus.Entry, msg string, err error, buf *bytes.Buffer, fileN
 	Fatal func pushes the error onto the buffer and flushes the buffer to file
 	Afterwards the Fatal function from logrus is called
 */
-func Fatal(logger *logrus.Entry, msg string, err error, buf *bytes.Buffer, fileName string) {
+func Fatal(logger *logrus.Entry, msg string, err error, buf *bytes.Buffer) {
 	logger.Error(msg, err)
 	//Flush to file
 	Flush(buf)
@@ -77,7 +77,7 @@ func Fatal(logger *logrus.Entry, msg string, err error, buf *bytes.Buffer, fileN
 	Panic func pushes the error onto the buffer and flushes the buffer to file
 	Afterwards the Panic function from logrus is called
 */
-func Panic(logger *logrus.Entry, msg string, err error, buf *bytes.Buffer, fileName string) {
+func Panic(logger *logrus.Entry, msg string, err error, buf *bytes.Buffer) {
 	logger.Error(msg, err)
 	//Flush to file
 	Flush(buf)
