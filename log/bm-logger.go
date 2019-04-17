@@ -2,7 +2,6 @@ package log
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"os"
 	"strconv"
@@ -20,11 +19,6 @@ var (
 //Flush flushes the buffer to the file which will be scraped to Loki
 func Flush(buf *bytes.Buffer) {
 	file := filePath + fileName + strconv.Itoa(counter) + ".log"
-
-	err := os.Chmod(file, 0777)
-	if err != nil {
-		fmt.Println(err)
-	}
 
 	//Create log file to be scraped to Loki
 	w, err := os.Create(file)
