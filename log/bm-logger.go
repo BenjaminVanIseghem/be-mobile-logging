@@ -10,10 +10,10 @@ import (
 )
 
 var (
-	fileArr          = []string{}
-	maxNumberOfFiles = 10
+	fileArr = []string{}
+	//MaxNumberOfFiles var
+	MaxNumberOfFiles = 10
 	filePath         = "/private/etc/promtail/"
-	fileName         = "send"
 )
 
 //LFile is an exported struct with a the buffer to which logs are written and extra info for making a write file
@@ -37,7 +37,7 @@ func Flush(logFile LFile) {
 	pathInArray := checkPathInArray(path)
 
 	if !pathInArray {
-		if len(fileArr) <= maxNumberOfFiles {
+		if len(fileArr) <= MaxNumberOfFiles {
 			//Create log file to be scraped to Loki
 			w, err := os.Create(path)
 			if err != nil {
