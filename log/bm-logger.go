@@ -12,14 +12,16 @@ import (
 
 var (
 	counter  = 0
+	filePath = "/private/etc/promtail/"
 	fileName = "send"
 )
 
 //Flush flushes the buffer to the file which will be scraped to Loki
 func Flush(buf *bytes.Buffer) {
+	file := filePath + fileName + strconv.Itoa(counter) + ".log"
 
 	//Create log file to be scraped to Loki
-	w, err := os.Create(fileName + strconv.Itoa(counter) + ".log")
+	w, err := os.Create(file)
 	if err != nil {
 		panic(err)
 	}
