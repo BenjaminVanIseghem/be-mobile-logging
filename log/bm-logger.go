@@ -13,7 +13,7 @@ var (
 	//MaxNumberOfFiles var
 	MaxNumberOfFiles = 20
 	fileArr          = []string{}
-	filePath         = "/Users/benjaminvaniseghem/Documents/Kitematic/promtail/etc/promtail"
+	filePath         = "/Users/benjaminvaniseghem/Documents/Kitematic/promtail/etc/promtail/"
 )
 
 //LFile is an exported struct with a the buffer to which logs are written and extra info for making a write file
@@ -145,7 +145,7 @@ func Fatal(logger *logrus.Entry, msg string, err error, logFile LFile) {
 	logFile.errorHappened = true
 	//Flush to file
 	Flush(logFile)
-	logrus.Fatal(msg)
+	logrus.Fatal(msg, err)
 }
 
 /*
