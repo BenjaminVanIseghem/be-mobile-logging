@@ -132,8 +132,6 @@ func CreateLogBuffer(serviceName string, extraPathInfo string) (LFile, *logrus.E
 func Error(logger *logrus.Entry, msg string, err error, logFile LFile) {
 	logger.Error(msg, err)
 	logFile.errorHappened = true
-	//Flush to file
-	Flush(logFile)
 }
 
 /*
