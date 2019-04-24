@@ -13,7 +13,7 @@ var (
 	//MaxNumberOfFiles var
 	MaxNumberOfFiles = 20
 	fileArr          = []string{}
-	filePath         = "/Users/benjaminvaniseghem/Documents/Kitematic/promtail/etc/promtail/"
+	filePath         = "/Users/benjaminvaniseghem/Documents/etc/promtail/"
 )
 
 //LFile is an exported struct with a the buffer to which logs are written and extra info for making a write file
