@@ -129,9 +129,11 @@ func CreateLogBuffer(serviceName string, extraPathInfo string) (LFile, *logrus.E
 }
 
 //Error pushes the error onto the buffer and flushes the buffer to file
-func Error(logger *logrus.Entry, msg string, err error, logFile LFile) {
+func Error(logger *logrus.Entry, msg string, err error, logFile *LFile) {
 	logger.Error(msg, err)
-	logFile.errorHappened = true
+
+	tempBool := &logFile.errorHappened
+	*tempBool = true
 }
 
 /*
