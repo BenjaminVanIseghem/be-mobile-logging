@@ -140,7 +140,7 @@ func CreateLogBuffer(serviceName string, extraPathInfo string) (LFile, *logrus.E
 	//Create LFile object
 	var logFile = LFile{memLog, serviceName, extraPathInfo, false}
 
-	if len(bufSlice) > MaxNumberOfBuffers {
+	if len(bufSlice) < MaxNumberOfBuffers {
 		//If there is room in the slice, append new LFile and buffer to slice
 		bufSlice = append(bufSlice, logFile)
 		entrySlice = append(entrySlice, entry)
