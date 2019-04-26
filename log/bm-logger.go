@@ -9,13 +9,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var (
-	//MaxNumberOfFiles var
-	MaxNumberOfFiles = 20
-	fileArr          = []string{}
-	filePath         = "/Users/benjaminvaniseghem/Documents/etc/promtail/"
-)
-
 //LFile is an exported struct with a the buffer to which logs are written and extra info for making a write file
 type LFile struct {
 	buffer        *bytes.Buffer
@@ -23,6 +16,17 @@ type LFile struct {
 	extraPathInfo string
 	errorHappened bool
 }
+
+var (
+	//MaxNumberOfFiles var
+	MaxNumberOfFiles = 20
+	//MaxNumberOfBuffers var
+	MaxNumberOfBuffers = 200
+	fileArr            = []string{}
+	filePath           = "/Users/benjaminvaniseghem/Documents/etc/promtail/"
+	bufSlice           = []LFile{}
+	entrySlice         = []*logrus.Entry{}
+)
 
 //Flush flushes the buffer to the file which will be scraped to Loki
 /*
@@ -115,6 +119,17 @@ func Flush(logFile LFile) {
 
 //CreateLogBuffer creates an in-memory buffer to temporarily store logs
 func CreateLogBuffer(serviceName string, extraPathInfo string) (LFile, *logrus.Entry) {
+	//Check if there is already an LFile with these credentials
+	if checkBufSlice(serviceName, extraPathInfo) {
+		//if LFile already exists, return it
+		logrus.Warn("Buffer already exists, returning existing buffer")
+		var logFile, entry = getLogFileAndEntry(serviceName, extraPathInfo)
+		if entry == nil {
+			logrus.Warn("Nil buffer")
+		}
+		return logFile, entry
+	}
+	//If it's a new LFile, return it and append it in the slice
 	memLog := &bytes.Buffer{}
 	logger := logrus.New()
 	multiWriter := io.MultiWriter(os.Stdout, memLog)
@@ -122,8 +137,18 @@ func CreateLogBuffer(serviceName string, extraPathInfo string) (LFile, *logrus.E
 
 	//Create logrus.Entry
 	entry := logrus.NewEntry(logger)
-
+	//Create LFile object
 	var logFile = LFile{memLog, serviceName, extraPathInfo, false}
+
+	if len(bufSlice) > MaxNumberOfBuffers {
+		//If there is room in the slice, append new LFile and buffer to slice
+		bufSlice = append(bufSlice, logFile)
+		entrySlice = append(entrySlice, entry)
+	} else {
+		//If there isn't room in the slice, make new slice without first element and append new LFile
+		bufSlice = append(bufSlice[1:], logFile)
+		entrySlice = append(entrySlice[1:], entry)
+	}
 
 	return logFile, entry
 }
@@ -168,4 +193,22 @@ func checkPathInArray(path string) bool {
 		}
 	}
 	return false
+}
+
+func checkBufSlice(serviceName string, extraInfo string) bool {
+	for _, f := range bufSlice {
+		if f.serviceName == serviceName && f.extraPathInfo == extraInfo {
+			return true
+		}
+	}
+	return false
+}
+
+func getLogFileAndEntry(serviceName string, extraInfo string) (LFile, *logrus.Entry) {
+	for i, f := range bufSlice {
+		if f.serviceName == serviceName && f.extraPathInfo == extraInfo {
+			return f, entrySlice[i]
+		}
+	}
+	return LFile{}, nil
 }
