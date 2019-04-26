@@ -212,3 +212,23 @@ func getLogFileAndEntry(serviceName string, extraInfo string) (LFile, *logrus.En
 	}
 	return LFile{}, nil
 }
+
+//GetLogBuffer function
+func GetLogBuffer(serviceName string, extraInfo string) LFile {
+	for _, f := range bufSlice {
+		if f.serviceName == serviceName && f.extraPathInfo == extraInfo {
+			return f
+		}
+	}
+	return LFile{}
+}
+
+//GetLogger function
+func GetLogger(serviceName string, extraInfo string) *logrus.Entry {
+	for i, f := range bufSlice {
+		if f.serviceName == serviceName && f.extraPathInfo == extraInfo {
+			return entrySlice[i]
+		}
+	}
+	return nil
+}
