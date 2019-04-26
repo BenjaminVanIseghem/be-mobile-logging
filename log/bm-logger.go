@@ -205,6 +205,16 @@ func GetLogger(serviceName string, extraInfo string) *logrus.Entry {
 	return nil
 }
 
+// GetLogBufferAndLogger function
+func GetLogBufferAndLogger(serviceName string, extraInfo string) (LFile, *logrus.Entry) {
+	for i, f := range bufSlice {
+		if f.serviceName == serviceName && f.extraPathInfo == extraInfo {
+			return f, entrySlice[i]
+		}
+	}
+	return LFile{}, nil
+}
+
 //Check if path is in array
 func checkPathInArray(path string) bool {
 	for _, p := range fileArr {
