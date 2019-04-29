@@ -12,6 +12,7 @@ import (
 //LFile is an exported struct with a the buffer to which logs are written and extra info for making a write file
 type LFile struct {
 	buffer        *bytes.Buffer
+	path          string
 	serviceName   string
 	extraPathInfo string
 	errorHappened bool
@@ -23,7 +24,6 @@ var (
 	//MaxNumberOfBuffers var
 	MaxNumberOfBuffers = 200
 	fileArr            = []string{}
-	filePath           = "/Users/benjaminvaniseghem/Documents/etc/promtail/"
 	bufSlice           = []LFile{}
 	entrySlice         = []*logrus.Entry{}
 )
@@ -38,7 +38,7 @@ func Flush(logFile LFile) {
 	if logFile.errorHappened {
 		start := time.Now()
 
-		path := filePath + logFile.serviceName + logFile.extraPathInfo + ".log"
+		path := logFile.path + logFile.serviceName + logFile.extraPathInfo + ".log"
 
 		pathInArray := checkPathInArray(path)
 
@@ -118,7 +118,7 @@ func Flush(logFile LFile) {
 }
 
 //CreateLogBuffer creates an in-memory buffer to temporarily store logs
-func CreateLogBuffer(serviceName string, extraPathInfo string) (LFile, *logrus.Entry) {
+func CreateLogBuffer(path string, serviceName string, extraPathInfo string) (LFile, *logrus.Entry) {
 	//Check if there is already an LFile with these credentials
 	if checkBufSlice(serviceName, extraPathInfo) {
 		//if LFile already exists, return it
@@ -138,7 +138,7 @@ func CreateLogBuffer(serviceName string, extraPathInfo string) (LFile, *logrus.E
 	//Create logrus.Entry
 	entry := logrus.NewEntry(logger)
 	//Create LFile object
-	var logFile = LFile{memLog, serviceName, extraPathInfo, false}
+	var logFile = LFile{memLog, path, serviceName, extraPathInfo, false}
 
 	if len(bufSlice) < MaxNumberOfBuffers {
 		//If there is room in the slice, append new LFile and buffer to slice
