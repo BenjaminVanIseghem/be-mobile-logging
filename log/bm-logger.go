@@ -60,12 +60,7 @@ func Flush(logFile LFile) {
 				//Append filepath to array
 				fileArr = append(fileArr, path)
 			} else {
-				//Take oldest filepath and rename this file to new path name
-				err := os.Rename(fileArr[0], path)
-				if err != nil {
-					logrus.Error("Error renaming file", err)
-				}
-				//Open renamed log file, this automatically truncates the existing file
+				//Open oldest log file, this automatically truncates the existing file
 				w, err := os.Create(fileArr[0])
 				if err != nil {
 					panic(err)
@@ -78,6 +73,12 @@ func Flush(logFile LFile) {
 				logrus.Printf("Copied %v bytes\n", n)
 				//Close file
 				w.Close()
+
+				//Take oldest filepath and rename this file to new path name
+				err = os.Rename(fileArr[0], path)
+				if err != nil {
+					logrus.Error("Error renaming file", err)
+				}
 
 				//Use slices to add this file to the back of the array
 				fileArr = append(fileArr[1:], path)
