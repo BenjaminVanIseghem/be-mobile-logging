@@ -243,3 +243,13 @@ func getLogFileAndEntry(serviceName string, extraInfo string) (LFile, *logrus.En
 	}
 	return LFile{}, nil
 }
+
+//SetMaxAmountOfFiles func -> Default = 20
+func SetMaxAmountOfFiles(amount int) {
+	MaxNumberOfFiles = amount
+}
+
+//SetMaxAmountOfBuffers func -> Default = 200
+func SetMaxAmountOfBuffers(amount int) {
+	MaxNumberOfBuffers = amount
+}
