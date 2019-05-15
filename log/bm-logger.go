@@ -2,14 +2,23 @@ package log
 
 import (
 	"bytes"
+	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/sirupsen/logrus"
 )
 
-//USING AMAZON S3
+//S3Handler struct
+type S3Handler struct {
+	Session *session.Session
+	Bucket  string
+}
 
 //LFile is an exported struct with a the buffer to which logs are written and extra info for making a write file
 type LFile struct {
@@ -28,7 +37,29 @@ var (
 	fileArr            = []string{}
 	bufSlice           = []LFile{}
 	entrySlice         = []*logrus.Entry{}
+	//S3Region is the region of the bucket
+	S3Region = ""
+	//S3Bucket is the name of the bucket
+	S3Bucket = ""
+	handler  S3Handler
 )
+
+//InitAWSSession func
+func InitAWSSession(region string, bucket string) {
+	S3Region = region
+	S3Bucket = bucket
+
+	sess, err := session.NewSession(&aws.Config{Region: aws.String(S3Region)})
+	if err != nil {
+		// Handle error
+	}
+
+	h := S3Handler{
+		Session: sess,
+		Bucket:  S3Bucket,
+	}
+	handler = h
+}
 
 //Flush flushes the buffer to the file which will be scraped to Loki
 /*
@@ -36,70 +67,25 @@ var (
 	This limits the file creation overhead to a certain level.
 	os.Rename(old, new) is optimized for this use case
 */
-func Flush(logFile LFile) {
+func (logFile LFile) Flush() {
 	if logFile.errorHappened {
 		start := time.Now()
 
 		path := logFile.path + logFile.serviceName + logFile.extraPathInfo + ".log"
 
-		pathInArray := checkPathInArray(path)
-
-		if !pathInArray {
-			if len(fileArr) <= MaxNumberOfFiles {
-				//Create log file to be scraped to Loki
-				w, err := os.Create(path)
-				if err != nil {
-					panic(err)
-				}
-				//Write buffer into file
-				n, err := logFile.buffer.WriteTo(w)
-				if err != nil {
-					panic(err)
-				}
-				logrus.Printf("Copied %v bytes\n", n)
-				//Close file
-				w.Close()
-				//Append filepath to array
-				fileArr = append(fileArr, path)
-			} else {
-				//Open oldest log file, this automatically truncates the existing file
-				w, err := os.Create(fileArr[0])
-				if err != nil {
-					panic(err)
-				}
-				//Write buffer into file
-				n, err := logFile.buffer.WriteTo(w)
-				if err != nil {
-					panic(err)
-				}
-				logrus.Printf("Copied %v bytes\n", n)
-				//Close file
-				w.Close()
-
-				//Take oldest filepath and rename this file to new path name
-				err = os.Rename(fileArr[0], path)
-				if err != nil {
-					logrus.Error("Error renaming file", err)
-				}
-
-				//Use slices to add this file to the back of the array
-				fileArr = append(fileArr[1:], path)
-			}
-		} else {
-			//Open file and flush buffer into this file
-			w, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-			if err != nil {
-				panic(err)
-			}
-			//Write buffer into file
-			n, err := logFile.buffer.WriteTo(w)
-			if err != nil {
-				panic(err)
-			}
-			logrus.Printf("Copied %v bytes\n", n)
-			//Close file
-			w.Close()
+		//Upload file to S3 through handler
+		err := handler.UploadFile(path, logFile.buffer)
+		if err != nil {
+			// Handle error
+			fmt.Println(err, "Error upload")
 		}
+		//Get amount of log lines
+		n := logFile.buffer.Len()
+
+		logrus.Printf("Copied %v logs\n", n)
+
+		//Append filepath to array
+		fileArr = append(fileArr, path)
 
 		//Reset buffer
 		logFile.buffer.Reset()
@@ -172,7 +158,7 @@ func Fatal(logger *logrus.Entry, msg string, err error, logFile LFile) {
 	logger.Error(msg, err)
 	logFile.errorHappened = true
 	//Flush to file
-	Flush(logFile)
+	logFile.Flush()
 	logrus.Fatal(msg, err)
 }
 
@@ -184,7 +170,7 @@ func Panic(logger *logrus.Entry, msg string, err error, logFile LFile) {
 	logger.Error(msg, err)
 	logFile.errorHappened = true
 	//Flush to file
-	Flush(logFile)
+	logFile.Flush()
 	logrus.Panic(msg, err)
 }
 
@@ -218,15 +204,15 @@ func GetLogBufferAndLogger(serviceName string, extraInfo string) (LFile, *logrus
 	return LFile{}, nil
 }
 
-//Check if path is in array
-func checkPathInArray(path string) bool {
-	for _, p := range fileArr {
-		if p == path {
-			return true
-		}
-	}
-	return false
-}
+// //Check if path is in array
+// func checkPathInArray(path string) bool {
+// 	for _, p := range fileArr {
+// 		if p == path {
+// 			return true
+// 		}
+// 	}
+// 	return false
+// }
 
 func checkBufSlice(serviceName string, extraInfo string) bool {
 	for _, f := range bufSlice {
@@ -254,4 +240,40 @@ func SetMaxAmountOfFiles(amount int) {
 //SetMaxAmountOfBuffers func -> Default = 200
 func SetMaxAmountOfBuffers(amount int) {
 	MaxNumberOfBuffers = amount
+}
+
+//UploadFile function
+func (h S3Handler) UploadFile(key string, body *bytes.Buffer) error {
+	buffer := body.Bytes()
+
+	_, err := s3.New(h.Session).PutObject(&s3.PutObjectInput{
+		Bucket:               aws.String(h.Bucket),
+		Key:                  aws.String(key),
+		ACL:                  aws.String("private"),
+		Body:                 bytes.NewReader(buffer),
+		ContentLength:        aws.Int64(int64(len(buffer))),
+		ContentType:          aws.String(http.DetectContentType(buffer)),
+		ContentDisposition:   aws.String("attachment"),
+		ServerSideEncryption: aws.String("AES256"),
+	})
+
+	return err
+}
+
+//ReadFile function
+func (h S3Handler) ReadFile(key string) (string, error) {
+	results, err := s3.New(h.Session).GetObject(&s3.GetObjectInput{
+		Bucket: aws.String(h.Bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return "", err
+	}
+	defer results.Body.Close()
+
+	buf := bytes.NewBuffer(nil)
+	if _, err := io.Copy(buf, results.Body); err != nil {
+		return "", err
+	}
+	return string(buf.Bytes()), nil
 }
