@@ -9,6 +9,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+//USING AMAZON S3
+
 //LFile is an exported struct with a the buffer to which logs are written and extra info for making a write file
 type LFile struct {
 	buffer        *bytes.Buffer
