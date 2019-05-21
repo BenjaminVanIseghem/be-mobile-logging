@@ -26,8 +26,12 @@
 
 
 [[constraint]]
+  name = "github.com/fluent/fluent-logger-golang"
+  version = "1.4.0"
+
+[[constraint]]
   name = "github.com/sirupsen/logrus"
-  version = "1.4.1"
+  version = "1.4.2"
 
 [prune]
   go-tests = true
