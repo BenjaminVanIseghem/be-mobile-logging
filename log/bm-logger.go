@@ -1,24 +1,16 @@
 package log
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/fluent/fluent-logger-golang/fluent"
 	"github.com/sirupsen/logrus"
 )
-
-//S3Handler struct
-type S3Handler struct {
-	Session *session.Session
-	Bucket  string
-}
 
 //LFile is an exported struct with a the buffer to which logs are written and extra info for making a write file
 type LFile struct {
@@ -37,29 +29,7 @@ var (
 	fileArr            = []string{}
 	bufSlice           = []LFile{}
 	entrySlice         = []*logrus.Entry{}
-	//S3Region is the region of the bucket
-	S3Region = ""
-	//S3Bucket is the name of the bucket
-	S3Bucket = ""
-	handler  S3Handler
 )
-
-//InitAWSSession func
-func InitAWSSession(region string, bucket string) {
-	S3Region = region
-	S3Bucket = bucket
-
-	sess, err := session.NewSession(&aws.Config{Region: aws.String(S3Region)})
-	if err != nil {
-		// Handle error
-	}
-
-	h := S3Handler{
-		Session: sess,
-		Bucket:  S3Bucket,
-	}
-	handler = h
-}
 
 //Flush flushes the buffer to the file which will be scraped to Loki
 /*
@@ -73,12 +43,29 @@ func (logFile LFile) Flush() {
 
 		path := logFile.path + logFile.serviceName + logFile.extraPathInfo + ".log"
 
-		//Upload file to S3 through handler
-		err := handler.UploadFile(path, logFile.buffer)
+		//----
+		logger, err := fluent.New(fluent.Config{FluentPort: 24225, FluentHost: "127.0.0.1", MarshalAsJSON: true})
 		if err != nil {
-			// Handle error
-			fmt.Println(err, "Error upload")
+			fmt.Println(err)
 		}
+		defer logger.Close()
+		tag := "myapp.access"
+		//-----
+
+		//Iterate through the buffer using a scanner
+		scanner := bufio.NewScanner(logFile.buffer)
+		for scanner.Scan() {
+			data := scanner.Text()
+			//Send every line to Fluentd
+			error := logger.Post(tag, data)
+			if error != nil {
+				panic(error)
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			fmt.Fprintln(os.Stderr, "reading standard input:", err)
+		}
+
 		//Get amount of log lines
 		n := logFile.buffer.Len()
 
@@ -122,6 +109,7 @@ func CreateLogBuffer(path string, serviceName string, extraPathInfo string) (LFi
 	memLog := &bytes.Buffer{}
 	logger := logrus.New()
 	multiWriter := io.MultiWriter(os.Stdout, memLog)
+	logger.SetFormatter(&logrus.JSONFormatter{})
 	logger.SetOutput(multiWriter)
 
 	//Create logrus.Entry
@@ -240,40 +228,4 @@ func SetMaxAmountOfFiles(amount int) {
 //SetMaxAmountOfBuffers func -> Default = 200
 func SetMaxAmountOfBuffers(amount int) {
 	MaxNumberOfBuffers = amount
-}
-
-//UploadFile function
-func (h S3Handler) UploadFile(key string, body *bytes.Buffer) error {
-	buffer := body.Bytes()
-
-	_, err := s3.New(h.Session).PutObject(&s3.PutObjectInput{
-		Bucket:               aws.String(h.Bucket),
-		Key:                  aws.String(key),
-		ACL:                  aws.String("private"),
-		Body:                 bytes.NewReader(buffer),
-		ContentLength:        aws.Int64(int64(len(buffer))),
-		ContentType:          aws.String(http.DetectContentType(buffer)),
-		ContentDisposition:   aws.String("attachment"),
-		ServerSideEncryption: aws.String("AES256"),
-	})
-
-	return err
-}
-
-//ReadFile function
-func (h S3Handler) ReadFile(key string) (string, error) {
-	results, err := s3.New(h.Session).GetObject(&s3.GetObjectInput{
-		Bucket: aws.String(h.Bucket),
-		Key:    aws.String(key),
-	})
-	if err != nil {
-		return "", err
-	}
-	defer results.Body.Close()
-
-	buf := bytes.NewBuffer(nil)
-	if _, err := io.Copy(buf, results.Body); err != nil {
-		return "", err
-	}
-	return string(buf.Bytes()), nil
 }
