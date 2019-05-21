@@ -3,6 +3,7 @@ package log
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -56,8 +57,15 @@ func (logFile LFile) Flush() {
 		scanner := bufio.NewScanner(logFile.buffer)
 		for scanner.Scan() {
 			data := scanner.Text()
+			log := make(map[string]interface{})
+
+			//Unmarshal data into mao
+			err := json.Unmarshal([]byte(data), &log)
+			if err != nil {
+				logrus.Error("Unmarshalling error", err)
+			}
 			//Send every line to Fluentd
-			error := logger.Post(tag, data)
+			error := logger.Post(tag, log)
 			if error != nil {
 				panic(error)
 			}
