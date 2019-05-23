@@ -19,7 +19,8 @@ type LFile struct {
 	serviceName   string
 	serviceInfo   string
 	errorHappened bool
-	fluent        *fluent.Fluent
+	port          int
+	host          string
 }
 
 var (
@@ -38,8 +39,10 @@ func (logFile LFile) Flush() {
 		//Tag for Loki, easily filterable in Grafana
 		tag := logFile.serviceName + "." + logFile.serviceInfo
 
+		fluent := initFluent(logFile.port, logFile.host)
+
 		//Close the fluent connection
-		defer logFile.fluent.Close()
+		defer fluent.Close()
 
 		//Iterate through the buffer using a scanner
 		scanner := bufio.NewScanner(logFile.buffer)
@@ -53,7 +56,7 @@ func (logFile LFile) Flush() {
 				logrus.Error("Unmarshalling error", err)
 			}
 			//Send every line to Fluentd
-			error := logFile.fluent.Post(tag, log)
+			error := fluent.Post(tag, log)
 			if error != nil {
 				panic(error)
 			}
@@ -107,10 +110,8 @@ func CreateLogBuffer(serviceName string, serviceInfo string, fluentPort int, flu
 
 	//Create logrus.Entry
 	entry := logrus.NewEntry(logger)
-	//Create Fluentd forwarder
-	fluent := initFluent(fluentPort, fluentHost)
 	//Create LFile object
-	var logFile = LFile{memLog, serviceName, serviceInfo, false, fluent}
+	var logFile = LFile{memLog, serviceName, serviceInfo, false, fluentPort, fluentHost}
 
 	if len(bufSlice) < MaxNumberOfBuffers {
 		//If there is room in the slice, append new LFile and buffer to slice
