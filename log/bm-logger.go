@@ -16,42 +16,30 @@ import (
 //LFile is an exported struct with a the buffer to which logs are written and extra info for making a write file
 type LFile struct {
 	buffer        *bytes.Buffer
-	path          string
 	serviceName   string
-	extraPathInfo string
+	serviceInfo   string
 	errorHappened bool
+	fluent        *fluent.Fluent
 }
 
 var (
-	//MaxNumberOfFiles var
-	MaxNumberOfFiles = 20
 	//MaxNumberOfBuffers var
-	MaxNumberOfBuffers = 200
-	fileArr            = []string{}
+	MaxNumberOfBuffers = 300
 	bufSlice           = []LFile{}
 	entrySlice         = []*logrus.Entry{}
 )
 
-//Flush flushes the buffer to the file which will be scraped to Loki
-/*
-	If the maximum amount of files is reached, overwrite the oldest file using os.Rename(old, new).
-	This limits the file creation overhead to a certain level.
-	os.Rename(old, new) is optimized for this use case
-*/
+//Flush flushes the buffer to the file which will be send to Loki via Fluentd
 func (logFile LFile) Flush() {
+	//Only flush if error has occurred
 	if logFile.errorHappened {
 		start := time.Now()
 
-		path := logFile.path + logFile.serviceName + logFile.extraPathInfo + ".log"
+		//Tag for Loki, easily filterable in Grafana
+		tag := logFile.serviceName + "." + logFile.serviceInfo
 
-		//----
-		logger, err := fluent.New(fluent.Config{FluentPort: 24225, FluentHost: "127.0.0.1", MarshalAsJSON: true})
-		if err != nil {
-			fmt.Println(err)
-		}
-		defer logger.Close()
-		tag := "myapp.access"
-		//-----
+		//Close the fluent connection
+		defer logFile.fluent.Close()
 
 		//Iterate through the buffer using a scanner
 		scanner := bufio.NewScanner(logFile.buffer)
@@ -59,13 +47,13 @@ func (logFile LFile) Flush() {
 			data := scanner.Text()
 			log := make(map[string]interface{})
 
-			//Unmarshal data into mao
+			//Unmarshal data into log
 			err := json.Unmarshal([]byte(data), &log)
 			if err != nil {
 				logrus.Error("Unmarshalling error", err)
 			}
 			//Send every line to Fluentd
-			error := logger.Post(tag, log)
+			error := logFile.fluent.Post(tag, log)
 			if error != nil {
 				panic(error)
 			}
@@ -79,9 +67,6 @@ func (logFile LFile) Flush() {
 
 		logrus.Printf("Copied %v logs\n", n)
 
-		//Append filepath to array
-		fileArr = append(fileArr, path)
-
 		//Reset buffer
 		logFile.buffer.Reset()
 
@@ -89,25 +74,25 @@ func (logFile LFile) Flush() {
 		logrus.WithFields(
 			logrus.Fields{
 				"serviceName": logFile.serviceName,
-				"extraInfo":   logFile.extraPathInfo,
+				"serviceInfo": logFile.serviceInfo,
 			}).Info("Flushing took: ", time.Since(start))
 	} else {
 		logrus.WithFields(
 			logrus.Fields{
 				"serviceName": logFile.serviceName,
-				"extraInfo":   logFile.extraPathInfo,
+				"serviceInfo": logFile.serviceInfo,
 			}).Info("Buffer cleared without flushing to file")
 	}
 
 }
 
 //CreateLogBuffer creates an in-memory buffer to temporarily store logs
-func CreateLogBuffer(path string, serviceName string, extraPathInfo string) (LFile, *logrus.Entry) {
+func CreateLogBuffer(serviceName string, serviceInfo string, fluentPort int, fluentHost string) (LFile, *logrus.Entry) {
 	//Check if there is already an LFile with these credentials
-	if checkBufSlice(serviceName, extraPathInfo) {
+	if checkBufSlice(serviceName, serviceInfo) {
 		//if LFile already exists, return it
 		logrus.Warn("Buffer already exists, returning existing buffer")
-		var logFile, entry = getLogFileAndEntry(serviceName, extraPathInfo)
+		var logFile, entry = GetLogBufferAndLogger(serviceName, serviceInfo)
 		if entry == nil {
 			logrus.Warn("Nil buffer")
 		}
@@ -122,8 +107,10 @@ func CreateLogBuffer(path string, serviceName string, extraPathInfo string) (LFi
 
 	//Create logrus.Entry
 	entry := logrus.NewEntry(logger)
+	//Create Fluentd forwarder
+	fluent := initFluent(fluentPort, fluentHost)
 	//Create LFile object
-	var logFile = LFile{memLog, path, serviceName, extraPathInfo, false}
+	var logFile = LFile{memLog, serviceName, serviceInfo, false, fluent}
 
 	if len(bufSlice) < MaxNumberOfBuffers {
 		//If there is room in the slice, append new LFile and buffer to slice
@@ -136,6 +123,15 @@ func CreateLogBuffer(path string, serviceName string, extraPathInfo string) (LFi
 	}
 
 	return logFile, entry
+}
+
+//initFluent func initializes the fluentd forwarder
+func initFluent(port int, host string) *fluent.Fluent {
+	logger, err := fluent.New(fluent.Config{FluentPort: port, FluentHost: host, MarshalAsJSON: true})
+	if err != nil {
+		fmt.Println(err)
+	}
+	return logger
 }
 
 //Error pushes the error onto the buffer and flushes the buffer to file
@@ -170,67 +166,23 @@ func Panic(logger *logrus.Entry, msg string, err error, logFile LFile) {
 	logrus.Panic(msg, err)
 }
 
-//GetLogBuffer function
-func GetLogBuffer(serviceName string, extraInfo string) LFile {
-	for _, f := range bufSlice {
-		if f.serviceName == serviceName && f.extraPathInfo == extraInfo {
-			return f
-		}
-	}
-	return LFile{}
-}
-
-//GetLogger function
-func GetLogger(serviceName string, extraInfo string) *logrus.Entry {
-	for i, f := range bufSlice {
-		if f.serviceName == serviceName && f.extraPathInfo == extraInfo {
-			return entrySlice[i]
-		}
-	}
-	return nil
-}
-
 // GetLogBufferAndLogger function
-func GetLogBufferAndLogger(serviceName string, extraInfo string) (LFile, *logrus.Entry) {
+func GetLogBufferAndLogger(serviceName string, serviceInfo string) (LFile, *logrus.Entry) {
 	for i, f := range bufSlice {
-		if f.serviceName == serviceName && f.extraPathInfo == extraInfo {
+		if f.serviceName == serviceName && f.serviceInfo == serviceInfo {
 			return f, entrySlice[i]
 		}
 	}
 	return LFile{}, nil
 }
 
-// //Check if path is in array
-// func checkPathInArray(path string) bool {
-// 	for _, p := range fileArr {
-// 		if p == path {
-// 			return true
-// 		}
-// 	}
-// 	return false
-// }
-
-func checkBufSlice(serviceName string, extraInfo string) bool {
+func checkBufSlice(serviceName string, serviceInfo string) bool {
 	for _, f := range bufSlice {
-		if f.serviceName == serviceName && f.extraPathInfo == extraInfo {
+		if f.serviceName == serviceName && f.serviceInfo == serviceInfo {
 			return true
 		}
 	}
 	return false
-}
-
-func getLogFileAndEntry(serviceName string, extraInfo string) (LFile, *logrus.Entry) {
-	for i, f := range bufSlice {
-		if f.serviceName == serviceName && f.extraPathInfo == extraInfo {
-			return f, entrySlice[i]
-		}
-	}
-	return LFile{}, nil
-}
-
-//SetMaxAmountOfFiles func -> Default = 20
-func SetMaxAmountOfFiles(amount int) {
-	MaxNumberOfFiles = amount
 }
 
 //SetMaxAmountOfBuffers func -> Default = 200
