@@ -136,8 +136,12 @@ func initFluent(port int, host string) *fluent.Fluent {
 }
 
 //Error pushes the error onto the buffer and flushes the buffer to file
-func Error(logger *logrus.Entry, msg string, err error, logFile *LFile) {
-	logger.Error(msg, err)
+func Error(logger *logrus.Entry, msg string, err error, logFile *LFile, m map[string]string) {
+	fields := logrus.Fields{}
+	for key, value := range m {
+		fields[key] = value
+	}
+	logger.WithFields(fields).Error(msg, err)
 
 	tempBool := &logFile.errorHappened
 	*tempBool = true
@@ -147,8 +151,13 @@ func Error(logger *logrus.Entry, msg string, err error, logFile *LFile) {
 	Fatal func pushes the error onto the buffer and flushes the buffer to file
 	Afterwards the Fatal function from logrus is called
 */
-func Fatal(logger *logrus.Entry, msg string, err error, logFile LFile) {
-	logger.Error(msg, err)
+func Fatal(logger *logrus.Entry, msg string, err error, logFile LFile, m map[string]string) {
+	fields := logrus.Fields{}
+	for key, value := range m {
+		fields[key] = value
+	}
+	logger.WithFields(fields).Error(msg, err)
+
 	logFile.errorHappened = true
 	//Flush to file
 	logFile.Flush()
@@ -159,8 +168,12 @@ func Fatal(logger *logrus.Entry, msg string, err error, logFile LFile) {
 	Panic func pushes the error onto the buffer and flushes the buffer to file
 	Afterwards the Panic function from logrus is called
 */
-func Panic(logger *logrus.Entry, msg string, err error, logFile LFile) {
-	logger.Error(msg, err)
+func Panic(logger *logrus.Entry, msg string, err error, logFile LFile, m map[string]string) {
+	fields := logrus.Fields{}
+	for key, value := range m {
+		fields[key] = value
+	}
+	logger.WithFields(fields).Error(msg, err)
 	logFile.errorHappened = true
 	//Flush to file
 	logFile.Flush()
