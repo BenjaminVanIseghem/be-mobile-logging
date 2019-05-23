@@ -136,7 +136,7 @@ func initFluent(port int, host string) *fluent.Fluent {
 }
 
 //Error pushes the error onto the buffer and flushes the buffer to file
-func Error(logger *logrus.Entry, msg string, err error, logFile *LFile, m map[string]string) {
+func Error(logger *logrus.Entry, msg string, err error, logFile *LFile, m map[string]interface{}) {
 	fields := logrus.Fields{}
 	for key, value := range m {
 		fields[key] = value
@@ -151,7 +151,7 @@ func Error(logger *logrus.Entry, msg string, err error, logFile *LFile, m map[st
 	Fatal func pushes the error onto the buffer and flushes the buffer to file
 	Afterwards the Fatal function from logrus is called
 */
-func Fatal(logger *logrus.Entry, msg string, err error, logFile LFile, m map[string]string) {
+func Fatal(logger *logrus.Entry, msg string, err error, logFile LFile, m map[string]interface{}) {
 	fields := logrus.Fields{}
 	for key, value := range m {
 		fields[key] = value
@@ -168,7 +168,7 @@ func Fatal(logger *logrus.Entry, msg string, err error, logFile LFile, m map[str
 	Panic func pushes the error onto the buffer and flushes the buffer to file
 	Afterwards the Panic function from logrus is called
 */
-func Panic(logger *logrus.Entry, msg string, err error, logFile LFile, m map[string]string) {
+func Panic(logger *logrus.Entry, msg string, err error, logFile LFile, m map[string]interface{}) {
 	fields := logrus.Fields{}
 	for key, value := range m {
 		fields[key] = value
